@@ -923,31 +923,25 @@ class CandidateController
 
             if ($apiKeyRow && !empty($apiKeyRow['gemini_api_key'])) {
                 $apiKey = trim($apiKeyRow['gemini_api_key']);
-                $base64Data = base64_encode(file_get_contents($tmpFile));
-
+                require_once BASE_PATH . '/app/helpers/ResumeParser.php';
+                $extractedRawText = ResumeParser::extractTextFallback($tmpFile, $mimeType);
+                
                 $payload = [
                     "contents" => [
                         [
                             "parts" => [
                                 [
-                                    "text" => "Extract candidate details from this resume into JSON. Format the output as a valid JSON object ONLY. Keys must be exactly: full_name, email_address, mobile_number, preferred_work_role_field (string, guessed job role), skills_set (comma separated string), current_company_city (string), current_designation (string), expected_salary_month (numeric string), experience_type (choose 'Fresher' or 'Experienced'). Return ONLY the JSON object, no markdown, no backticks."
-                                ],
-                                [
-                                    "inlineData" => [
-                                        "mimeType" => "application/pdf",
-                                        "data" => $base64Data
-                                    ]
+                                    "text" => "Extract candidate details from the following resume text into JSON. Format the output as a valid JSON object ONLY. Keys must be exactly: full_name, email_address, mobile_number, preferred_work_role_field (string, guessed job role), skills_set (comma separated string), current_company_city (string), current_designation (string), expected_salary_month (numeric string), experience_type (choose 'Fresher' or 'Experienced'). Return ONLY the JSON object, no markdown, no backticks. \n\nRESUME TEXT:\n" . substr($extractedRawText, 0, 15000)
                                 ]
                             ]
                         ]
                     ],
                     "generationConfig" => [
-                        "temperature" => 0.2,
-                        "responseMimeType" => "application/json"
+                        "temperature" => 0.2
                     ]
                 ];
 
-                $ch = curl_init("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=" . $apiKey);
+                $ch = curl_init("https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" . $apiKey);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                 curl_setopt($ch, CURLOPT_POST, true);
                 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
