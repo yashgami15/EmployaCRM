@@ -911,97 +911,87 @@ class CandidateController
         $tmpFile = $_FILES['resume']['tmp_name'];
         $mimeType = function_exists('mime_content_type') ? mime_content_type($tmpFile) : $_FILES['resume']['type'];
 
-        if ($mimeType !== 'application/pdf') {
-            echo json_encode(['status' => 'error', 'message' => 'Please upload a PDF file for AI parsing.']);
-            exit;
-        }
+        // Try AI Parsing First
+        $parsedJson = null;
+        $aiError = '';
 
-        if (!function_exists('curl_init')) {
-            echo json_encode(['status' => 'error', 'message' => 'cURL is not installed on this server. Please contact hosting support.']);
-            exit;
-        }
+        if ($mimeType === 'application/pdf' && function_exists('curl_init')) {
+            $tenantName = $_SESSION['tenant_name'] ?? '';
+            $stmt = db()->prepare('SELECT gemini_api_key FROM users WHERE tenant_name = :tenant AND gemini_api_key IS NOT NULL AND gemini_api_key != "" LIMIT 1');
+            $stmt->execute(['tenant' => $tenantName]);
+            $apiKeyRow = $stmt->fetch();
 
-        // Get API Key from current user's company
-        $tenantName = $_SESSION['tenant_name'] ?? '';
-        $stmt = db()->prepare('SELECT gemini_api_key FROM users WHERE tenant_name = :tenant AND gemini_api_key IS NOT NULL AND gemini_api_key != "" LIMIT 1');
-        $stmt->execute(['tenant' => $tenantName]);
-        $apiKeyRow = $stmt->fetch();
+            if ($apiKeyRow && !empty($apiKeyRow['gemini_api_key'])) {
+                $apiKey = trim($apiKeyRow['gemini_api_key']);
+                $base64Data = base64_encode(file_get_contents($tmpFile));
 
-        if (!$apiKeyRow || empty($apiKeyRow['gemini_api_key'])) {
-            echo json_encode(['status' => 'error', 'message' => 'Gemini API Key is missing. Please ask your Admin to configure the AI API Key in the Settings/Admin panel.']);
-            exit;
-        }
-
-        $apiKey = trim($apiKeyRow['gemini_api_key']);
-        $base64Data = base64_encode(file_get_contents($tmpFile));
-
-        $payload = [
-            "contents" => [
-                [
-                    "parts" => [
+                $payload = [
+                    "contents" => [
                         [
-                            "text" => "Extract candidate details from this resume into JSON. Format the output as a valid JSON object ONLY. Keys must be exactly: full_name, email_address, mobile_number, preferred_work_role_field (string, guessed job role), skills_set (comma separated string), current_company_city (string), current_designation (string), expected_salary_month (numeric string), experience_type (choose 'Fresher' or 'Experienced'). Return ONLY the JSON object, no markdown, no backticks."
-                        ],
-                        [
-                            "inlineData" => [
-                                "mimeType" => "application/pdf",
-                                "data" => $base64Data
+                            "parts" => [
+                                [
+                                    "text" => "Extract candidate details from this resume into JSON. Format the output as a valid JSON object ONLY. Keys must be exactly: full_name, email_address, mobile_number, preferred_work_role_field (string, guessed job role), skills_set (comma separated string), current_company_city (string), current_designation (string), expected_salary_month (numeric string), experience_type (choose 'Fresher' or 'Experienced'). Return ONLY the JSON object, no markdown, no backticks."
+                                ],
+                                [
+                                    "inlineData" => [
+                                        "mimeType" => "application/pdf",
+                                        "data" => $base64Data
+                                    ]
+                                ]
                             ]
                         ]
+                    ],
+                    "generationConfig" => [
+                        "temperature" => 0.2,
+                        "responseMimeType" => "application/json"
                     ]
-                ]
-            ],
-            "generationConfig" => [
-                "temperature" => 0.2,
-                "responseMimeType" => "application/json"
-            ]
-        ];
+                ];
 
-        $ch = curl_init("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=" . $apiKey);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // Fix for hostinger SSL CA issues
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json'
-        ]);
+                $ch = curl_init("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=" . $apiKey);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
 
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch);
-        // Removed curl_close($ch) because it is deprecated in PHP 8.4+ and causes a warning
+                $response = curl_exec($ch);
+                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                // curl_close removed for PHP 8.4 compatibility
 
-        if ($response === false) {
-            echo json_encode(['status' => 'error', 'message' => 'Failed to connect to Google API: ' . $curlError]);
+                if ($response !== false && $httpCode === 200) {
+                    $data = json_decode($response, true);
+                    $extractedText = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+                    if (!empty($extractedText)) {
+                        $extractedText = preg_replace('/```json/i', '', $extractedText);
+                        $extractedText = preg_replace('/```/i', '', $extractedText);
+                        $parsedJson = json_decode(trim($extractedText, " \t\n\r\0\x0B`"), true);
+                    }
+                } else {
+                    $aiError = "Google AI Error HTTP $httpCode.";
+                }
+            } else {
+                $aiError = "No API Key configured.";
+            }
+        } else {
+            $aiError = "cURL missing or not a PDF.";
+        }
+
+        // If AI parsing succeeded, return it!
+        if ($parsedJson && isset($parsedJson['email_address'])) {
+            echo json_encode(['status' => 'success', 'data' => $parsedJson]);
             exit;
         }
 
-        if ($httpCode !== 200) {
-            $errData = json_decode((string)$response, true);
-            $msg = $errData['error']['message'] ?? 'API responded with HTTP ' . $httpCode;
-            echo json_encode(['status' => 'error', 'message' => 'Google AI Error: ' . $msg]);
+        // --- LOCAL FALLBACK PARSING ---
+        require_once BASE_PATH . '/app/helpers/ResumeParser.php';
+        $localData = ResumeParser::parseLocally($tmpFile, $mimeType);
+
+        if (!empty($localData['email_address']) || !empty($localData['mobile_number'])) {
+            echo json_encode(['status' => 'success', 'data' => $localData, 'message' => "AI Parser failed ($aiError). Used Local Fallback Parser instead."]);
             exit;
         }
 
-        $data = json_decode($response, true);
-        $extractedText = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
-
-        if (empty($extractedText)) {
-            echo json_encode(['status' => 'error', 'message' => 'AI failed to extract data from this resume.']);
-            exit;
-        }
-
-        // Cleanup potential markdown wrappers from Gemini
-        $extractedText = preg_replace('/```json/i', '', $extractedText);
-        $extractedText = preg_replace('/```/i', '', $extractedText);
-        $parsedJson = json_decode(trim($extractedText, " \t\n\r\0\x0B`"), true);
-
-        if (!$parsedJson) {
-            echo json_encode(['status' => 'error', 'message' => 'AI returned invalid JSON format. Raw output: ' . substr($extractedText, 0, 50)]);
-            exit;
-        }
-
-        echo json_encode(['status' => 'success', 'data' => $parsedJson]);
+        echo json_encode(['status' => 'error', 'message' => "AI Parsing failed ($aiError) and Local Fallback could not extract data from this file format."]);
         exit;
     }
 }

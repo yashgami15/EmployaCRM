@@ -533,7 +533,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     }
                     
-                    alert('Resume parsed successfully! Please review the auto-filled details.');
+                    if (data.message) {
+                        alert(data.message);
+                    } else {
+                        alert('Resume parsed successfully! Please review the auto-filled details.');
+                    }
                 } else {
                     alert(data.message || 'An error occurred during AI parsing.');
                 }
