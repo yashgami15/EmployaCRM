@@ -504,8 +504,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 for (let i = 1; i <= pdf.numPages; i++) {
                     const page = await pdf.getPage(i);
                     const textContent = await page.getTextContent();
-                    const pageText = textContent.items.map(item => item.str).join(' ');
-                    extractedText += pageText + ' \n';
+                    
+                    let pageText = '';
+                    let lastY = -1;
+                    
+                    textContent.items.forEach(item => {
+                        if (lastY !== -1 && Math.abs(item.transform[5] - lastY) > 5) {
+                            pageText += '\n'; // Add newline if vertical position changes
+                        } else if (lastY !== -1) {
+                            pageText += ' '; // Add space if same line
+                        }
+                        pageText += item.str.trim();
+                        lastY = item.transform[5];
+                    });
+                    
+                    extractedText += pageText + '\n\n';
                 }
                 
                 const formData = new FormData();
