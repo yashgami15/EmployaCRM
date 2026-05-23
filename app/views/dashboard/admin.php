@@ -144,6 +144,12 @@ require BASE_PATH . '/app/views/partials/app_layout_start.php';
                         </div>
                         <div class="form-text text-muted small mt-2">Select which modules this user can access. Admin role ignores these and gets full access.</div>
                     </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-medium text-secondary small">Integrations (AI Parsing)</label>
+                        <input type="text" name="gemini_api_key" id="gemini_api_key" class="form-control" placeholder="Enter Gemini API Key for Auto-Resume Parsing">
+                        <div class="form-text text-muted small mt-1">Leave blank if this company does not use AI Resume parsing. Get key from <a href="https://aistudio.google.com" target="_blank">Google AI Studio</a>.</div>
+                    </div>
                 </div>
                 <div class="modal-footer bg-light border-top-0 d-flex justify-content-between">
                     <button type="button" class="btn btn-outline-danger" onclick="confirmDelete()">Delete User</button>
@@ -173,6 +179,7 @@ $extraScripts = [<<<'HTML'
         document.getElementById('edit_tenant_name').value = user.tenant_name;
         document.getElementById('edit_role').value = user.role;
         document.getElementById('current_password_display').value = user.visible_password || 'Unknown (Encrypted)';
+        document.getElementById('gemini_api_key').value = user.gemini_api_key || '';
         document.querySelector('input[name="password"]').value = '';
         
         // Reset checkboxes

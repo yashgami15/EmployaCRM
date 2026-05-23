@@ -20,7 +20,7 @@ class AdminController
         $user = current_user();
         $flash = get_flash();
 
-        $stmt = db()->query('SELECT id, name, email, tenant_name, role, permissions, visible_password FROM users ORDER BY id DESC');
+        $stmt = db()->query('SELECT id, name, email, tenant_name, role, permissions, visible_password, gemini_api_key FROM users ORDER BY id DESC');
         $users = $stmt->fetchAll();
 
         require BASE_PATH . '/app/views/dashboard/admin.php';
@@ -104,8 +104,10 @@ class AdminController
             redirect('index.php?action=admin');
         }
 
+        $geminiApiKey = trim((string) ($_POST['gemini_api_key'] ?? ''));
+
         if ($password !== '') {
-            $stmt = db()->prepare('UPDATE users SET name = :name, email = :email, tenant_name = :tenant_name, role = :role, permissions = :permissions, password = :password, visible_password = :visible_password WHERE id = :id');
+            $stmt = db()->prepare('UPDATE users SET name = :name, email = :email, tenant_name = :tenant_name, role = :role, permissions = :permissions, password = :password, visible_password = :visible_password, gemini_api_key = :gemini_api_key WHERE id = :id');
             $stmt->execute([
                 'name' => $name,
                 'email' => $email,
@@ -114,16 +116,18 @@ class AdminController
                 'permissions' => $permissionsJson,
                 'password' => password_hash($password, PASSWORD_DEFAULT),
                 'visible_password' => $password,
+                'gemini_api_key' => $geminiApiKey,
                 'id' => $userId
             ]);
         } else {
-            $stmt = db()->prepare('UPDATE users SET name = :name, email = :email, tenant_name = :tenant_name, role = :role, permissions = :permissions WHERE id = :id');
+            $stmt = db()->prepare('UPDATE users SET name = :name, email = :email, tenant_name = :tenant_name, role = :role, permissions = :permissions, gemini_api_key = :gemini_api_key WHERE id = :id');
             $stmt->execute([
                 'name' => $name,
                 'email' => $email,
                 'tenant_name' => $tenantName,
                 'role' => $role,
                 'permissions' => $permissionsJson,
+                'gemini_api_key' => $geminiApiKey,
                 'id' => $userId
             ]);
         }

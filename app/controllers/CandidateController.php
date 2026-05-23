@@ -893,4 +893,94 @@ class CandidateController
         fclose($output);
         exit;
     }
+
+    public static function parseResumeAjax(): void
+    {
+        require_auth();
+        header('Content-Type: application/json');
+
+        if (!isset($_FILES['resume']) || $_FILES['resume']['error'] !== UPLOAD_ERR_OK) {
+            echo json_encode(['status' => 'error', 'message' => 'No file uploaded or upload error.']);
+            exit;
+        }
+
+        $tmpFile = $_FILES['resume']['tmp_name'];
+        $mimeType = mime_content_type($tmpFile) ?: $_FILES['resume']['type'];
+
+        if ($mimeType !== 'application/pdf') {
+            echo json_encode(['status' => 'error', 'message' => 'Please upload a PDF file for AI parsing.']);
+            exit;
+        }
+
+        // Get API Key from current user's company
+        $tenantName = $_SESSION['tenant_name'] ?? '';
+        $stmt = db()->prepare('SELECT gemini_api_key FROM users WHERE tenant_name = :tenant AND gemini_api_key IS NOT NULL AND gemini_api_key != "" LIMIT 1');
+        $stmt->execute(['tenant' => $tenantName]);
+        $apiKeyRow = $stmt->fetch();
+
+        if (!$apiKeyRow || empty($apiKeyRow['gemini_api_key'])) {
+            echo json_encode(['status' => 'error', 'message' => 'Gemini API Key is missing. Please ask your Admin to configure the AI API Key in the Settings/Admin panel.']);
+            exit;
+        }
+
+        $apiKey = trim($apiKeyRow['gemini_api_key']);
+        $base64Data = base64_encode(file_get_contents($tmpFile));
+
+        $payload = [
+            "contents" => [
+                [
+                    "parts" => [
+                        [
+                            "text" => "Extract candidate details from this resume into JSON. Format the output as a valid JSON object ONLY. Keys must be exactly: full_name, email_address, mobile_number, preferred_work_role_field (string, guessed job role), skills_set (comma separated string), current_company_city (string), current_designation (string), expected_salary_month (numeric string), experience_type (choose 'Fresher' or 'Experienced'). Return ONLY the JSON object, no markdown, no backticks."
+                        ],
+                        [
+                            "inlineData" => [
+                                "mimeType" => "application/pdf",
+                                "data" => $base64Data
+                            ]
+                        ]
+                    ]
+                ]
+            ],
+            "generationConfig" => [
+                "temperature" => 0.2,
+                "responseMimeType" => "application/json"
+            ]
+        ];
+
+        $ch = curl_init("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" . $apiKey);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json'
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode !== 200 || !$response) {
+            echo json_encode(['status' => 'error', 'message' => 'AI API Error: ' . ($response ?: 'Failed to connect to Google API.')]);
+            exit;
+        }
+
+        $data = json_decode($response, true);
+        $extractedText = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+
+        if (empty($extractedText)) {
+            echo json_encode(['status' => 'error', 'message' => 'AI failed to extract data from this resume.']);
+            exit;
+        }
+
+        $parsedJson = json_decode(trim($extractedText, " \t\n\r\0\x0B`"), true);
+
+        if (!$parsedJson) {
+            echo json_encode(['status' => 'error', 'message' => 'AI returned invalid JSON format.']);
+            exit;
+        }
+
+        echo json_encode(['status' => 'success', 'data' => $parsedJson]);
+        exit;
+    }
 }

@@ -38,6 +38,14 @@ function run_migrations(PDO $pdo): void
         )'
     );
 
+    ensure_table_columns($pdo, 'users', [
+        'tenant_name' => 'TEXT',
+        'role' => 'TEXT',
+        'permissions' => 'TEXT',
+        'visible_password' => 'TEXT',
+        'gemini_api_key' => 'TEXT'
+    ]);
+
     $pdo->exec(
         'CREATE TABLE IF NOT EXISTS candidates (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -295,6 +295,27 @@ $oldDocuments = old_array('documents_have');
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body pt-2">
+                    <div class="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom bg-light p-3 rounded">
+                        <div>
+                            <h6 class="mb-1 text-primary"><i class="bi bi-magic me-1"></i> Autofill with AI (Resume Parser)</h6>
+                            <p class="mb-0 small text-muted">Upload a Candidate's Resume (PDF) and our AI will automatically read it and fill out this form for you to review.</p>
+                        </div>
+                        <div>
+                            <input type="file" id="aiResumeUpload" class="d-none" accept="application/pdf">
+                            <button type="button" class="btn btn-primary btn-sm px-3 shadow-sm" onclick="document.getElementById('aiResumeUpload').click();">
+                                <i class="bi bi-upload me-1"></i> Upload Resume (PDF)
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="aiLoadingIndicator" class="d-none text-center p-4 bg-light rounded mb-3 border border-primary border-opacity-25">
+                        <div class="spinner-border text-primary mb-2" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <h6 class="text-primary mb-0">AI is analyzing the resume...</h6>
+                        <p class="small text-muted mb-0 mt-1">This takes about 5 to 10 seconds. Please wait.</p>
+                    </div>
+                    
                     <h6 class="section-title">Personal Details</h6>
                     <div class="row g-3 mb-3">
                         <div class="col-md-4"><label class="form-label">Full Name <span class="text-danger-asterisk">*</span></label><input type="text" class="form-control" name="full_name" value="<?= esc(old('full_name')) ?>" required></div>
@@ -452,6 +473,73 @@ $oldDocuments = old_array('documents_have');
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const aiResumeUpload = document.getElementById('aiResumeUpload');
+    if (aiResumeUpload) {
+        aiResumeUpload.addEventListener('change', function() {
+            if (this.files.length === 0) return;
+            const file = this.files[0];
+            
+            if (file.type !== 'application/pdf') {
+                alert('Please upload a PDF file for AI parsing.');
+                this.value = '';
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('resume', file);
+            
+            const loadingIndicator = document.getElementById('aiLoadingIndicator');
+            loadingIndicator.classList.remove('d-none');
+            
+            fetch('index.php?action=parse_resume_ajax', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                loadingIndicator.classList.add('d-none');
+                this.value = '';
+                
+                if (data.status === 'success') {
+                    const candidateData = data.data;
+                    
+                    // Autofill the form
+                    if (candidateData.full_name) document.querySelector('[name="full_name"]').value = candidateData.full_name;
+                    if (candidateData.email_address) document.querySelector('[name="email_id"]').value = candidateData.email_address;
+                    if (candidateData.mobile_number) document.querySelector('[name="mobile_number"]').value = candidateData.mobile_number.replace(/[^0-9]/g, '');
+                    if (candidateData.preferred_work_role_field) document.querySelector('[name="preferred_work_role_field"]').value = candidateData.preferred_work_role_field;
+                    if (candidateData.skills_set) document.querySelector('[name="skills"]').value = candidateData.skills_set;
+                    if (candidateData.current_company_city) document.querySelector('[name="current_company_city"]').value = candidateData.current_company_city;
+                    if (candidateData.current_designation) document.querySelector('[name="current_designation"]').value = candidateData.current_designation;
+                    if (candidateData.expected_salary_month) document.querySelector('[name="expected_salary_month"]').value = candidateData.expected_salary_month.replace(/[^0-9]/g, '');
+                    
+                    if (candidateData.experience_type) {
+                        const expSelect = document.querySelector('[name="experience_type"]');
+                        for (let i = 0; i < expSelect.options.length; i++) {
+                            if (expSelect.options[i].value.toLowerCase() === candidateData.experience_type.toLowerCase()) {
+                                expSelect.selectedIndex = i;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    alert('Resume parsed successfully! Please review the auto-filled details.');
+                } else {
+                    alert(data.message || 'An error occurred during AI parsing.');
+                }
+            })
+            .catch(err => {
+                loadingIndicator.classList.add('d-none');
+                this.value = '';
+                alert('Network error while connecting to the AI parser.');
+            });
+        });
+    }
+});
+</script>
 
 <?php
 clear_old();

@@ -66,6 +66,11 @@ switch ($action) {
         HomeController::logActivityAjax();
         break;
 
+    case 'parse_resume_ajax':
+        if (!is_post()) exit;
+        CandidateController::parseResumeAjax();
+        break;
+
     case 'reset_database':
         require_auth();
         db()->exec('DELETE FROM candidates');
