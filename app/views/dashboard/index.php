@@ -498,7 +498,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 method: 'POST',
                 body: formData
             })
-            .then(res => res.json())
+            .then(async res => {
+                const text = await res.text();
+                try {
+                    return JSON.parse(text);
+                } catch(e) {
+                    throw new Error("Server error: " + text.substring(0, 100));
+                }
+            })
             .then(data => {
                 loadingIndicator.classList.add('d-none');
                 this.value = '';
@@ -534,7 +541,7 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(err => {
                 loadingIndicator.classList.add('d-none');
                 this.value = '';
-                alert('Network error while connecting to the AI parser.');
+                alert('Connection/Server Error: ' + err.message);
             });
         });
     }

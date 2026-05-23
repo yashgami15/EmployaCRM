@@ -905,10 +905,15 @@ class CandidateController
         }
 
         $tmpFile = $_FILES['resume']['tmp_name'];
-        $mimeType = mime_content_type($tmpFile) ?: $_FILES['resume']['type'];
+        $mimeType = function_exists('mime_content_type') ? mime_content_type($tmpFile) : $_FILES['resume']['type'];
 
         if ($mimeType !== 'application/pdf') {
             echo json_encode(['status' => 'error', 'message' => 'Please upload a PDF file for AI parsing.']);
+            exit;
+        }
+
+        if (!function_exists('curl_init')) {
+            echo json_encode(['status' => 'error', 'message' => 'cURL is not installed on this server. Please contact hosting support.']);
             exit;
         }
 
@@ -952,16 +957,25 @@ class CandidateController
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // Fix for hostinger SSL CA issues
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             'Content-Type: application/json'
         ]);
 
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
         curl_close($ch);
 
-        if ($httpCode !== 200 || !$response) {
-            echo json_encode(['status' => 'error', 'message' => 'AI API Error: ' . ($response ?: 'Failed to connect to Google API.')]);
+        if ($response === false) {
+            echo json_encode(['status' => 'error', 'message' => 'Failed to connect to Google API: ' . $curlError]);
+            exit;
+        }
+
+        if ($httpCode !== 200) {
+            $errData = json_decode((string)$response, true);
+            $msg = $errData['error']['message'] ?? 'API responded with HTTP ' . $httpCode;
+            echo json_encode(['status' => 'error', 'message' => 'Google AI Error: ' . $msg]);
             exit;
         }
 
@@ -973,10 +987,13 @@ class CandidateController
             exit;
         }
 
+        // Cleanup potential markdown wrappers from Gemini
+        $extractedText = preg_replace('/```json/i', '', $extractedText);
+        $extractedText = preg_replace('/```/i', '', $extractedText);
         $parsedJson = json_decode(trim($extractedText, " \t\n\r\0\x0B`"), true);
 
         if (!$parsedJson) {
-            echo json_encode(['status' => 'error', 'message' => 'AI returned invalid JSON format.']);
+            echo json_encode(['status' => 'error', 'message' => 'AI returned invalid JSON format. Raw output: ' . substr($extractedText, 0, 50)]);
             exit;
         }
 
