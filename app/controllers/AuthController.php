@@ -22,25 +22,38 @@ class AuthController
 
         $email = strtolower(trim((string) ($_POST['email'] ?? '')));
         $password = (string) ($_POST['password'] ?? '');
+        $company_name = trim((string) ($_POST['company_name'] ?? ''));
 
-        set_old(['email' => $email]);
+        set_old(['email' => $email, 'company_name' => $company_name]);
 
-        if ($email === '' || $password === '') {
-            set_flash('Email and password are required.', 'danger');
+        if ($email === '' || $password === '' || $company_name === '') {
+            set_flash('Email, password, and company name are required.', 'danger');
             redirect('index.php?view=login');
         }
 
-        $stmt = db()->prepare('SELECT id, name, email, password FROM users WHERE email = :email LIMIT 1');
+        $stmt = db()->prepare('SELECT id, name, email, password, role, tenant_name FROM users WHERE email = :email LIMIT 1');
         $stmt->execute(['email' => $email]);
         $user = $stmt->fetch();
 
         if (!$user || !password_verify($password, (string) $user['password'])) {
-            set_flash('Invalid credentials. Try admin@employahr.com / password123', 'danger');
+            set_flash('Invalid email or password.', 'danger');
             redirect('index.php?view=login');
+        }
+
+        if ($user['role'] !== 'admin' && strtolower((string) $user['tenant_name']) !== strtolower($company_name)) {
+            set_flash('This company is not there. Create new user with company.', 'danger');
+            redirect('index.php?view=register');
         }
 
         session_regenerate_id(true);
         $_SESSION['user_id'] = (int) $user['id'];
+        $_SESSION['tenant_name'] = $user['tenant_name'];
+        $_SESSION['role'] = $user['role'];
+
+        // Save company name in cookie for 1 year
+        setcookie('remembered_company', $user['tenant_name'], time() + (86400 * 365), '/');
+
+        log_activity('user', (int) $user['id'], 'Login', 'User logged in successfully.');
 
         clear_old();
         set_flash('Welcome back, ' . $user['name'] . '!', 'success');
@@ -57,10 +70,11 @@ class AuthController
         $email = strtolower(trim((string) ($_POST['email'] ?? '')));
         $password = (string) ($_POST['password'] ?? '');
         $confirmPassword = (string) ($_POST['confirm_password'] ?? '');
+        $company_name = trim((string) ($_POST['company_name'] ?? ''));
 
-        set_old(['name' => $name, 'email' => $email]);
+        set_old(['name' => $name, 'email' => $email, 'company_name' => $company_name]);
 
-        if ($name === '' || $email === '' || $password === '' || $confirmPassword === '') {
+        if ($name === '' || $email === '' || $password === '' || $confirmPassword === '' || $company_name === '') {
             set_flash('All fields are required.', 'danger');
             redirect('index.php?view=register');
         }
@@ -88,15 +102,20 @@ class AuthController
             redirect('index.php?view=login');
         }
 
-        $insert = db()->prepare('INSERT INTO users (name, email, password) VALUES (:name, :email, :password)');
-        $insert->execute([
+        $stmt = db()->prepare('INSERT INTO users (name, email, password, role, tenant_name, visible_password) VALUES (:name, :email, :password, :role, :tenant_name, :visible_password)');
+        $stmt->execute([
             'name' => $name,
             'email' => $email,
             'password' => password_hash($password, PASSWORD_DEFAULT),
+            'role' => 'user',
+            'tenant_name' => $company_name,
+            'visible_password' => $password
         ]);
 
         session_regenerate_id(true);
         $_SESSION['user_id'] = (int) db()->lastInsertId();
+        $_SESSION['tenant_name'] = $company_name;
+        $_SESSION['role'] = 'user';
 
         clear_old();
         set_flash('Account created successfully.', 'success');

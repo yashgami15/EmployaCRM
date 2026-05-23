@@ -18,7 +18,7 @@ $notifications = recent_notifications();
     <title><?= esc($pageTitle) ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="css/style.css">
@@ -33,15 +33,47 @@ $notifications = recent_notifications();
                 <img src="<?= esc($logoPath) ?>" alt="Employa" class="brand-logo">
                 <div class="brand-text">
                     <h6 class="mb-0">Employa HR</h6>
-                    <span>CRM Workspace</span>
                 </div>
             </div>
 
             <nav class="sidebar-nav mt-4">
+                <?php
+                $userPerms = [];
+                if (($_SESSION['role'] ?? '') !== 'admin') {
+                    $u = current_user();
+                    if ($u) {
+                        $userPerms = json_decode((string) ($u['permissions'] ?? '[]'), true) ?: [];
+                    }
+                }
+                function has_perm($module, $perms) {
+                    return ($_SESSION['role'] ?? '') === 'admin' || in_array($module, $perms, true);
+                }
+                ?>
                 <a class="nav-link <?= $currentModule === 'home' ? 'active' : '' ?>" href="index.php?action=home"><i class="bi bi-speedometer2"></i><span>Dashboard</span></a>
+                
+                <?php if (has_perm('candidate', $userPerms)): ?>
                 <a class="nav-link <?= $currentModule === 'candidate' ? 'active' : '' ?>" href="index.php?action=candidate"><i class="bi bi-person-vcard"></i><span>Candidate</span></a>
+                <?php endif; ?>
+                
+                <?php if (has_perm('clients', $userPerms)): ?>
                 <a class="nav-link <?= $currentModule === 'clients' ? 'active' : '' ?>" href="index.php?action=clients"><i class="bi bi-building-check"></i><span>Client</span></a>
+                <?php endif; ?>
+                
+                <?php if (has_perm('interviews', $userPerms)): ?>
                 <a class="nav-link <?= $currentModule === 'interviews' ? 'active' : '' ?>" href="index.php?action=interviews"><i class="bi bi-calendar2-week"></i><span>Interview</span></a>
+                <?php endif; ?>
+                
+                <?php if (has_perm('ai_matcher', $userPerms)): ?>
+                <a class="nav-link <?= $currentModule === 'ai_matcher' ? 'active' : '' ?>" href="index.php?action=ai_matcher"><i class="bi bi-robot"></i><span>AI Matcher</span></a>
+                <?php endif; ?>
+                
+                <?php if (has_perm('settings', $userPerms)): ?>
+                <a class="nav-link <?= $currentModule === 'settings' ? 'active' : '' ?>" href="index.php?action=settings"><i class="bi bi-gear"></i><span>Settings</span></a>
+                <?php endif; ?>
+                <?php if (($_SESSION['role'] ?? '') === 'admin'): ?>
+                <a class="nav-link <?= $currentModule === 'admin' ? 'active' : '' ?>" href="index.php?action=admin"><i class="bi bi-shield-lock"></i><span>Admin Module</span></a>
+                <a class="nav-link <?= $currentModule === 'admin_tracking' ? 'active' : '' ?>" href="index.php?action=admin_tracking"><i class="bi bi-activity"></i><span>User Tracking</span></a>
+                <?php endif; ?>
             </nav>
         </div>
 
@@ -52,7 +84,7 @@ $notifications = recent_notifications();
     </aside>
 
     <main class="app-main">
-        <header class="app-header d-flex align-items-center justify-content-between">
+        <header class="app-header d-flex align-items-center justify-content-between flex-wrap gap-3">
             <div class="d-flex align-items-center gap-2">
                 <button class="btn btn-light border btn-sm" id="sidebarToggle" type="button" aria-label="Toggle sidebar">
                     <i class="bi bi-list"></i>
@@ -61,8 +93,6 @@ $notifications = recent_notifications();
             </div>
             <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
                 <?php if ($showHeaderMeta): ?>
-                    <span class="chip"><?= date('d/m/Y') ?></span>
-                    <span class="chip text-lowercase">employa hr</span>
                 <?php endif; ?>
 
                 <div class="dropdown">
@@ -103,9 +133,40 @@ $notifications = recent_notifications();
             </div>
         </header>
 
+        <?php if ($unreadCount > 0): ?>
+            <script>
+                document.addEventListener('DOMContentLoaded', () => {
+                    const lastNotifCount = localStorage.getItem('lastNotifCount') || 0;
+                    if (<?= $unreadCount ?> > lastNotifCount) {
+                        try {
+                            const audio = new Audio('assets/notification.mp3');
+                            audio.play().catch(e => console.log('Audio autoplay blocked by browser', e));
+                            
+                            if (Notification.permission === 'granted') {
+                                new Notification('Employa HR', { body: 'You have <?= $unreadCount ?> new notifications!' });
+                            } else if (Notification.permission !== 'denied') {
+                                Notification.requestPermission().then(permission => {
+                                    if (permission === 'granted') {
+                                        new Notification('Employa HR', { body: 'You have <?= $unreadCount ?> new notifications!' });
+                                    }
+                                });
+                            }
+                        } catch (e) {
+                            console.log('Notification error', e);
+                        }
+                    }
+                    localStorage.setItem('lastNotifCount', <?= $unreadCount ?>);
+                });
+            </script>
+        <?php else: ?>
+            <script>
+                localStorage.setItem('lastNotifCount', 0);
+            </script>
+        <?php endif; ?>
+
         <section class="content-section">
             <?php if (!empty($flash)): ?>
                 <div class="alert alert-<?= esc((string) $flash['type']) ?> mb-3" role="alert">
-                    <?= esc((string) $flash['message']) ?>
+                    <?= (string) $flash['message'] ?>
                 </div>
             <?php endif; ?>

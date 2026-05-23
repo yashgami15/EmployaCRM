@@ -22,4 +22,12 @@ if (!$isCli) {
     header('Content-Type: text/plain; charset=utf-8');
 }
 
-echo 'OK ' . date('Y-m-d H:i:s');
+try {
+    process_due_reminders();
+    db()->query("DELETE FROM notifications WHERE created_at < datetime('now', '-1 day')");
+    
+    echo 'OK ' . date('Y-m-d H:i:s');
+} catch (Throwable $e) {
+    http_response_code(500);
+    echo 'ERROR ' . $e->getMessage();
+}

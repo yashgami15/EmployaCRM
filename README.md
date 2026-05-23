@@ -31,8 +31,9 @@
 3. If document root cannot be changed, create a root loader file that includes `public/index.php`.
 
 ## Default Admin Login
+- Company Name: `employahr`
 - Email: `admin@employahr.com`
-- Password: `password123`
+- Password: `admin@123`
 
 ## Database File
 - Auto-created at: `data/app.db`

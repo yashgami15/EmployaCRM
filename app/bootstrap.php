@@ -14,5 +14,6 @@ require BASE_PATH . '/app/controllers/HomeController.php';
 require BASE_PATH . '/app/controllers/ClientController.php';
 require BASE_PATH . '/app/controllers/InterviewController.php';
 require BASE_PATH . '/app/controllers/CandidateController.php';
-
-process_due_reminders();
+require BASE_PATH . '/app/controllers/AiMatcherController.php';
+require BASE_PATH . '/app/controllers/SettingsController.php';
+require BASE_PATH . '/app/controllers/AdminController.php';

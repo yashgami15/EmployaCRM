@@ -14,7 +14,7 @@ $illustrationPath = 'assets/welcome-illustration.svg';
     <title>Employa HR - <?= $isRegister ? 'Create Account' : 'Sign In' ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="css/style.css">
@@ -61,6 +61,17 @@ $illustrationPath = 'assets/welcome-illustration.svg';
                                 </div>
                             <?php endif; ?>
 
+                            <?php
+                                $defaultCompany = old('company_name');
+                                if (empty($defaultCompany) && isset($_COOKIE['remembered_company'])) {
+                                    $defaultCompany = $_COOKIE['remembered_company'];
+                                }
+                            ?>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold" for="company_name">Company Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="company_name" name="company_name" placeholder="Enter company name" value="<?= esc($defaultCompany) ?>" required>
+                            </div>
+
                             <div class="mb-3">
                                 <label class="form-label fw-semibold" for="email">Email <span class="text-danger">*</span></label>
                                 <input type="email" class="form-control" id="email" name="email" placeholder="Enter your email" value="<?= esc(old('email')) ?>" required>
@@ -102,7 +113,6 @@ $illustrationPath = 'assets/welcome-illustration.svg';
                         </p>
 
                         <?php if (!$isRegister): ?>
-                            <p class="small text-center text-muted mt-3 mb-0">Default login: <strong>admin@employahr.com</strong> / <strong>password123</strong></p>
                         <?php endif; ?>
                     </div>
                 </div>

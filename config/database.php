@@ -177,55 +177,89 @@ function run_migrations(PDO $pdo): void
         )'
     );
 
-    $countStmt = $pdo->query('SELECT COUNT(*) as total FROM users');
-    $count = (int) ($countStmt->fetch()['total'] ?? 0);
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS timelines (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            module_type TEXT NOT NULL,
+            reference_id INTEGER NOT NULL,
+            action_title TEXT NOT NULL,
+            action_details TEXT,
+            created_by TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )'
+    );
 
-    if ($count === 0) {
-        $seed = $pdo->prepare('INSERT INTO users (name, email, password) VALUES (:name, :email, :password)');
-        $seed->execute([
-            'name' => 'Yash Gami',
-            'email' => 'admin@employahr.com',
-            'password' => password_hash('password123', PASSWORD_DEFAULT),
-        ]);
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS dropdown_settings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_name TEXT NOT NULL,
+            option_value TEXT NOT NULL,
+            sort_order INTEGER DEFAULT 0
+        )'
+    );
+
+    $settingsCountStmt = $pdo->query('SELECT COUNT(*) as total FROM dropdown_settings');
+    if (((int) ($settingsCountStmt->fetch()['total'] ?? 0)) === 0) {
+        $initialSettings = [
+            'candidate_status' => ['Applied', 'Interview', 'Hired', 'Rejected'],
+            'candidate_source' => ['Direct', 'LinkedIn', 'Naukri', 'Referral', 'Indeed', 'Website'],
+            'client_status' => ['Active', 'In Progress', 'On Hold', 'Closed'],
+            'interview_stage' => ['Scheduled', 'Completed', 'Selected', 'Rejected'],
+            'interview_mode' => ['Online', 'Offline', 'Phone'],
+            'experience_type' => ['Fresher', 'Experienced'],
+            'marital_status' => ['Single', 'Married', 'Other'],
+            'documents' => ['Resume', 'Aadhaar', 'PAN', '10th Marksheet', '12th Marksheet', 'Graduation Certificate', 'Experience Letter', 'Offer Letter', 'Passport Photo', 'Other'],
+            'client_category' => ['IT Services', 'Manufacturing', 'Retail', 'Healthcare', 'Education', 'Finance', 'Other'],
+            'client_timing' => ['Full Time', 'Part Time', 'Shift Based'],
+            'client_gender' => ['Any', 'Male', 'Female']
+        ];
+        $insertSetting = $pdo->prepare('INSERT INTO dropdown_settings (group_name, option_value, sort_order) VALUES (:group_name, :option_value, :sort_order)');
+        foreach ($initialSettings as $group => $options) {
+            foreach ($options as $i => $opt) {
+                $insertSetting->execute(['group_name' => $group, 'option_value' => $opt, 'sort_order' => $i]);
+            }
+        }
     }
 
-    $clientCountStmt = $pdo->query('SELECT COUNT(*) as total FROM clients');
-    $clientCount = (int) ($clientCountStmt->fetch()['total'] ?? 0);
+    ensure_table_columns($pdo, 'users', [
+        'tenant_name' => 'TEXT',
+        'role' => 'TEXT DEFAULT "user"',
+        'permissions' => 'TEXT DEFAULT "[]"',
+        'visible_password' => 'TEXT'
+    ]);
 
-    if ($clientCount === 0) {
-        $clientSeed = $pdo->prepare(
-            'INSERT INTO clients (
-                company_name, job_code, reference_code, contact_person, mobile_number, mobile_number_2,
-                email, website, area, category, job_role, timing, gender_preference,
-                required_person_count, budget, expectation, remarks, follower_name, status, open_positions
-             ) VALUES (
-                :company_name, :job_code, :reference_code, :contact_person, :mobile_number, :mobile_number_2,
-                :email, :website, :area, :category, :job_role, :timing, :gender_preference,
-                :required_person_count, :budget, :expectation, :remarks, :follower_name, :status, :open_positions
-             )'
-        );
+    ensure_table_columns($pdo, 'candidates', ['tenant_name' => 'TEXT']);
+    ensure_table_columns($pdo, 'clients', ['tenant_name' => 'TEXT']);
+    ensure_table_columns($pdo, 'interviews', ['tenant_name' => 'TEXT']);
+    ensure_table_columns($pdo, 'reminders', ['tenant_name' => 'TEXT']);
+    ensure_table_columns($pdo, 'notifications', ['tenant_name' => 'TEXT']);
+    ensure_table_columns($pdo, 'timelines', ['tenant_name' => 'TEXT']);
+    ensure_table_columns($pdo, 'dropdown_settings', ['tenant_name' => 'TEXT']);
 
-        $clientSeed->execute([
-            'company_name' => 'NovaTech Solutions',
-            'job_code' => 'NT-2026-001',
-            'reference_code' => 'REF-NT01',
-            'contact_person' => 'Riya Shah',
-            'mobile_number' => '9876501234',
-            'mobile_number_2' => '',
-            'email' => 'hiring@novatech.com',
-            'website' => 'https://novatech.example.com',
-            'area' => 'Rajkot',
-            'category' => 'IT Services',
-            'job_role' => 'Marketing Executive',
-            'timing' => 'Full Time',
-            'gender_preference' => 'Any',
-            'required_person_count' => 3,
-            'budget' => '35000',
-            'expectation' => 'Strong communication and marketing strategy',
-            'remarks' => 'Immediate hiring',
-            'follower_name' => 'Yash',
-            'status' => 'Active',
-            'open_positions' => 3,
+    // Migrate legacy data: if tenant_name is NULL, assign it to the primary company 'employahr'
+    $tablesToMigrate = ['candidates', 'clients', 'interviews', 'reminders', 'notifications', 'timelines', 'users'];
+    foreach ($tablesToMigrate as $table) {
+        try {
+            $pdo->exec("UPDATE $table SET tenant_name = 'employahr' WHERE tenant_name IS NULL OR tenant_name = ''");
+        } catch (Throwable $e) {}
+    }
+
+    // Ensure the requested admin user exists and has the correct credentials
+    $adminCheck = $pdo->prepare('SELECT id FROM users WHERE email = "admin@employahr.com"');
+    $adminCheck->execute();
+    if ($adminCheck->fetch()) {
+        $updateAdmin = $pdo->prepare('UPDATE users SET role = "admin", tenant_name = "employahr", password = :password WHERE email = "admin@employahr.com"');
+        $updateAdmin->execute([
+            'password' => password_hash('admin@123', PASSWORD_DEFAULT)
+        ]);
+    } else {
+        $seed = $pdo->prepare('INSERT INTO users (name, email, password, role, tenant_name) VALUES (:name, :email, :password, :role, :tenant)');
+        $seed->execute([
+            'name' => 'Super Admin',
+            'email' => 'admin@employahr.com',
+            'password' => password_hash('admin@123', PASSWORD_DEFAULT),
+            'role' => 'admin',
+            'tenant' => 'employahr'
         ]);
     }
 }

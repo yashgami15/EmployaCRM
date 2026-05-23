@@ -25,8 +25,11 @@ require BASE_PATH . '/app/views/partials/app_layout_start.php';
 
 <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
     <div>
-        <h1 class="greeting mb-1">Good Evening! <?= esc($user['name']) ?></h1>
+        <h1 class="greeting mb-1">Dashboard</h1>
         <p class="text-secondary mb-0">Profile overview, reminders and hiring performance by day, month and year.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-success" onclick="syncReminders(this)"><i class="bi bi-arrow-repeat"></i> Sync Reminders</button>
     </div>
 </div>
 
@@ -107,7 +110,7 @@ require BASE_PATH . '/app/views/partials/app_layout_start.php';
     <div class="col-xl-4">
         <div class="card card-soft h-100">
             <div class="card-body">
-                <h5 class="mb-3">Candidate Funnel</h5>
+                <h5 class="mb-3">Hiring Funnel</h5>
                 <div class="candidate-funnel">
                     <?php foreach ($pipeline as $stage): ?>
                         <?php $percent = (int) $candidateStats['total'] > 0 ? max(8, round(((int) $stage['count'] / (int) $candidateStats['total']) * 100)) : 8; ?>
@@ -153,7 +156,7 @@ require BASE_PATH . '/app/views/partials/app_layout_start.php';
             <div class="card-body">
                 <h5 class="mb-3">Upcoming Reminders</h5>
                 <div class="table-responsive">
-                    <table class="table table-candidates mb-0 align-middle">
+                    <table class="table mb-0 align-middle">
                         <thead>
                         <tr>
                             <th>Title</th>
@@ -171,7 +174,7 @@ require BASE_PATH . '/app/views/partials/app_layout_start.php';
                             <?php foreach ($upcomingReminders as $reminder): ?>
                                 <tr>
                                     <td>
-                                        <p class="candidate-name mb-0"><?= esc((string) $reminder['title']) ?></p>
+                                        <p class="fw-bold mb-0 text-dark"><?= esc((string) $reminder['title']) ?></p>
                                         <small class="text-secondary"><?= esc((string) ($reminder['reminder_message'] ?? '')) ?></small>
                                     </td>
                                     <td><?= esc((string) $reminder['remind_at']) ?></td>

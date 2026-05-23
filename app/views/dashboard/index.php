@@ -17,11 +17,18 @@ $query = http_build_query([
     'source' => $source,
 ]);
 
+$filterQuery = http_build_query([
+    'search' => $search,
+    'status' => $status,
+    'source' => $source
+]);
+
 $oldDocuments = old_array('documents_have');
 
 $pageTitle = 'Employa HR - Candidate';
 $headerTitle = 'Candidate';
 $currentModule = 'candidate';
+$showHeaderMeta = false;
 $headerActions = '<button class="btn btn-success fw-semibold" data-candidate-mode="add" data-bs-toggle="modal" data-bs-target="#addCandidateModal"><i class="bi bi-person-plus"></i> Add Candidate</button>';
 
 $candidateFormFields = [
@@ -33,13 +40,14 @@ $candidateFormFields = [
     'current_company_city', 'current_designation', 'current_roles', 'current_start_date',
     'current_salary_month', 'reason_for_change', 'skills_set', 'achievements',
     'expected_salary_month', 'preferred_location', 'preferred_working_time',
-    'preferred_work_role_field', 'documents_have', 'additional_notes', 'status', 'source', 'added_on',
+    'preferred_work_role_field', 'documents_have', 'additional_notes', 'status', 'source', 'added_on', 'resume_path'
 ];
 
 $candidateFunnel = [
     ['label' => 'Applied', 'count' => (int) $stats['applied'], 'class' => 'stage-applied'],
     ['label' => 'Interview', 'count' => (int) $stats['interview'], 'class' => 'stage-interview'],
     ['label' => 'Hired', 'count' => (int) $stats['hired'], 'class' => 'stage-hired'],
+    ['label' => 'Rejected', 'count' => (int) $stats['rejected'], 'class' => 'stage-rejected'],
 ];
 
 require BASE_PATH . '/app/views/partials/app_layout_start.php';
@@ -85,7 +93,7 @@ require BASE_PATH . '/app/views/partials/app_layout_start.php';
             <input type="text" class="form-control" name="search" placeholder="Search by name, email, mobile, role, skill" value="<?= esc($search) ?>">
         </div>
         <div class="col-xl-2 col-lg-3 col-sm-6">
-            <select class="form-select" name="status">
+            <select class="form-select" name="status" onchange="this.form.submit()">
                 <option value="">All Status</option>
                 <?php foreach ($statusOptions as $item): ?>
                     <option value="<?= esc($item) ?>" <?= $status === $item ? 'selected' : '' ?>><?= esc($item) ?></option>
@@ -93,26 +101,24 @@ require BASE_PATH . '/app/views/partials/app_layout_start.php';
             </select>
         </div>
         <div class="col-xl-2 col-lg-3 col-sm-6">
-            <select class="form-select" name="source">
+            <select class="form-select" name="source" onchange="this.form.submit()">
                 <option value="">All Source</option>
                 <?php foreach ($sourceOptions as $item): ?>
                     <option value="<?= esc($item) ?>" <?= $source === $item ? 'selected' : '' ?>><?= esc($item) ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
-        <div class="col-xl-1 col-12 d-grid">
-            <button class="btn btn-outline-secondary" type="submit">Go</button>
-        </div>
     </div>
 
     <div class="d-flex flex-wrap gap-2 mt-3">
         <button class="btn btn-outline-secondary" type="button" id="importCsvBtn">Import CSV</button>
+        <a class="btn btn-outline-info" href="download_sample.php?type=candidate" download>Download Sample CSV</a>
         <a class="btn btn-outline-secondary" href="index.php?<?= esc($query) ?>">Export Filtered</a>
         <a class="btn btn-outline-secondary disabled" href="#" id="exportSelectedBtn" data-base-url="index.php?action=export_selected">Export Selected</a>
     </div>
 </form>
 
-<form id="importCsvForm" method="post" action="index.php?action=import_csv" enctype="multipart/form-data" class="d-none">
+<form id="importCsvForm" method="post" action="index.php?action=import_csv&<?= $filterQuery ?>" enctype="multipart/form-data" class="d-none">
     <?= csrf_field() ?>
     <input type="file" id="csvFileInput" name="csv_file" accept=".csv,text/csv">
 </form>
@@ -125,7 +131,7 @@ require BASE_PATH . '/app/views/partials/app_layout_start.php';
         </label>
         <strong class="text-secondary"><span id="selectedCount">0</span> selected</strong>
 
-        <form id="bulkStatusForm" method="post" action="index.php?action=bulk_status" class="d-flex align-items-center gap-2 ms-md-auto">
+        <form id="bulkStatusForm" method="post" action="index.php?action=bulk_status&<?= $filterQuery ?>" class="d-flex align-items-center gap-2 ms-md-auto">
             <?= csrf_field() ?>
             <input type="hidden" name="selected_ids" id="bulkStatusIds">
             <select name="bulk_status" class="form-select" id="bulkStatusSelect">
@@ -137,7 +143,7 @@ require BASE_PATH . '/app/views/partials/app_layout_start.php';
             <button type="submit" class="btn btn-outline-secondary" id="applyBulkBtn">Apply</button>
         </form>
 
-        <form id="deleteSelectedForm" method="post" action="index.php?action=delete_selected" class="ms-0">
+        <form id="deleteSelectedForm" method="post" action="index.php?action=delete_candidate&<?= $filterQuery ?>" class="ms-0">
             <?= csrf_field() ?>
             <input type="hidden" name="selected_ids" id="deleteSelectedIds">
             <button type="submit" class="btn btn-outline-danger" id="deleteSelectedBtn">Delete Selected</button>
@@ -150,13 +156,46 @@ require BASE_PATH . '/app/views/partials/app_layout_start.php';
                 <tr>
                     <th style="width:44px;"></th>
                     <th>Full Name</th>
+                    <th>Email Address</th>
                     <th>Mobile</th>
                     <th>Email ID</th>
+                    <th>Date of Birth</th>
+                    <th>Full Address</th>
+                    <th>Nearby Landmark</th>
+                    <th>Native</th>
+                    <th>Caste</th>
+                    <th>Father Occ.</th>
+                    <th>Mother Occ.</th>
+                    <th>Sibling & Status</th>
+                    <th>Marital Status</th>
+                    <th>SSC Details</th>
+                    <th>HSC/Diploma</th>
+                    <th>Graduate Details</th>
+                    <th>Post Grad Details</th>
+                    <th>Experience Type</th>
+                    <th>Prev Company</th>
+                    <th>Prev Desig</th>
+                    <th>Prev Roles</th>
+                    <th>Prev Start</th>
+                    <th>Prev End</th>
+                    <th>Prev Salary</th>
+                    <th>Curr Company</th>
+                    <th>Curr Desig</th>
+                    <th>Curr Roles</th>
+                    <th>Curr Start</th>
+                    <th>Curr Salary</th>
+                    <th>Reason Change</th>
                     <th>Preferred Role</th>
-                    <th>Skills</th>
-                    <th>AI Auto Match</th>
+                    <th>Skills Set</th>
+                    <th>Achievements</th>
+                    <th>Expected Salary</th>
+                    <th>Pref Location</th>
+                    <th>Pref Time</th>
+                    <th>Documents</th>
+                    <th>Additional Notes</th>
                     <th>Resume</th>
                     <th>Status</th>
+                    <th>Source</th>
                     <th>Added On</th>
                     <th class="sticky-action">Action</th>
                 </tr>
@@ -177,24 +216,44 @@ require BASE_PATH . '/app/views/partials/app_layout_start.php';
                             <td><input type="checkbox" class="form-check-input row-checkbox" value="<?= (int) $candidate['id'] ?>"></td>
                             <td>
                                 <p class="candidate-name mb-0"><?= esc((string) $candidate['full_name']) ?></p>
-                                <small class="text-secondary"><?= esc((string) ($candidate['preferred_location'] ?: '-')) ?></small>
                             </td>
+                            <td><?= esc((string) ($candidate['email_address'] ?? '')) ?></td>
                             <td><?= esc((string) ($candidate['mobile_number'] ?: $candidate['phone'])) ?></td>
                             <td><?= esc((string) ($candidate['email_id'] ?: $candidate['email'])) ?></td>
+                            <td><?= esc((string) ($candidate['date_of_birth'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['full_address'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['nearby_landmark'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['native_place'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['caste'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['father_occupation'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['mother_occupation'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['sibling_status'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['marital_status'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['ssc_details'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['hsc_diploma_details'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['graduate_details'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['post_graduate_details'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['experience_type'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['previous_company_city'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['previous_designation'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['previous_roles'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['previous_start_date'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['previous_end_date'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['previous_salary_month'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['current_company_city'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['current_designation'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['current_roles'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['current_start_date'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['current_salary_month'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['reason_for_change'] ?? '')) ?></td>
                             <td><?= esc((string) ($candidate['preferred_work_role_field'] ?: $candidate['role'] ?: '-')) ?></td>
                             <td><?= esc((string) ($candidate['skills_set'] ?: $candidate['skills'] ?: '-')) ?></td>
-                            <td>
-                                <?php if (empty($candidate['ai_matches'])): ?>
-                                    <span class="text-secondary small">No match yet</span>
-                                <?php else: ?>
-                                    <?php foreach ($candidate['ai_matches'] as $match): ?>
-                                        <div class="small mb-1">
-                                            <strong><?= esc((string) $match['company_name']) ?></strong>
-                                            <span class="text-success">(<?= (int) $match['score'] ?>%)</span>
-                                        </div>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </td>
+                            <td><?= esc((string) ($candidate['achievements'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['expected_salary_month'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['preferred_location'] ?: '-')) ?></td>
+                            <td><?= esc((string) ($candidate['preferred_working_time'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['documents_have'] ?? '')) ?></td>
+                            <td><?= esc((string) ($candidate['additional_notes'] ?? '')) ?></td>
                             <td>
                                 <?php if (!empty($candidate['resume_path'])): ?>
                                     <a href="<?= esc((string) $candidate['resume_path']) ?>" target="_blank" class="btn btn-sm btn-outline-secondary">View</a>
@@ -203,18 +262,15 @@ require BASE_PATH . '/app/views/partials/app_layout_start.php';
                                 <?php endif; ?>
                             </td>
                             <td><span class="badge status-badge status-<?= esc($statusClass) ?>"><?= esc((string) $candidate['status']) ?></span></td>
+                            <td><?= esc((string) $candidate['source'] ?? '') ?></td>
                             <td><?= esc((string) $candidate['added_on']) ?></td>
                             <td class="sticky-action">
-                                <button
-                                    class="btn btn-sm btn-outline-primary candidate-edit-btn"
-                                    type="button"
-                                    data-candidate-mode="edit"
-                                    data-candidate-id="<?= (int) $candidate['id'] ?>"
-                                    <?= $candidateDataAttrs ?>
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#addCandidateModal">
-                                    <i class="bi bi-pencil-square"></i> Edit
-                                </button>
+                                <div class="d-flex gap-1 flex-nowrap align-items-center">
+                                    <a href="tel:<?= esc((string) ($candidate['mobile_number'] ?: $candidate['phone'])) ?>" class="btn btn-sm btn-success" title="Call" onclick="logContactActivity(event, 'candidate', <?= (int)$candidate['id'] ?>, 'Call', this.href)"><i class="bi bi-telephone"></i></a>
+                                    <a href="mailto:<?= esc((string) ($candidate['email_id'] ?: $candidate['email'])) ?>" class="btn btn-sm btn-warning" title="Email" onclick="logContactActivity(event, 'candidate', <?= (int)$candidate['id'] ?>, 'Mail', this.href)"><i class="bi bi-envelope"></i></a>
+                                    <button class="btn btn-sm btn-outline-primary candidate-edit-btn" title="Edit" data-candidate-mode="edit" data-candidate-id="<?= (int) $candidate['id'] ?>" <?= $candidateDataAttrs ?> data-bs-toggle="modal" data-bs-target="#addCandidateModal"><i class="bi bi-pencil-square"></i></button>
+                                    <button class="btn btn-sm btn-outline-info" title="Remind" data-bs-toggle="modal" data-bs-target="#candidateReminderModal" data-candidate-id="<?= (int) $candidate['id'] ?>" data-candidate-name="<?= esc((string) $candidate['full_name']) ?>" data-candidate-email="<?= esc((string) ($candidate['email_id'] ?: $candidate['email'])) ?>" data-candidate-phone="<?= esc((string) ($candidate['mobile_number'] ?: $candidate['phone'])) ?>"><i class="bi bi-bell"></i></button>
+                                </div>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -224,10 +280,14 @@ require BASE_PATH . '/app/views/partials/app_layout_start.php';
     </div>
 </div>
 
+<?php
+$oldDocuments = old_array('documents_have');
+?>
+
 <div class="modal fade" id="addCandidateModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content border-0 shadow-lg">
-            <form method="post" action="index.php?action=add_candidate" enctype="multipart/form-data" id="candidateProfileForm">
+            <form method="post" action="index.php?action=add_candidate&<?= $filterQuery ?>" enctype="multipart/form-data" id="candidateProfileForm">
                 <?= csrf_field() ?>
                 <input type="hidden" name="candidate_id" id="candidateIdInput">
                 <div class="modal-header modal-header-sticky">
@@ -237,10 +297,9 @@ require BASE_PATH . '/app/views/partials/app_layout_start.php';
                 <div class="modal-body pt-2">
                     <h6 class="section-title">Personal Details</h6>
                     <div class="row g-3 mb-3">
-                        <div class="col-md-3"><label class="form-label">Email Address</label><input type="email" class="form-control" name="email_address" value="<?= esc(old('email_address')) ?>"></div>
-                        <div class="col-md-3"><label class="form-label">Full Name *</label><input type="text" class="form-control" name="full_name" value="<?= esc(old('full_name')) ?>" required></div>
-                        <div class="col-md-3"><label class="form-label">Mobile Number *</label><input type="text" class="form-control" name="mobile_number" value="<?= esc(old('mobile_number')) ?>" required></div>
-                        <div class="col-md-3"><label class="form-label">Email ID *</label><input type="email" class="form-control" name="email_id" value="<?= esc(old('email_id')) ?>" required></div>
+                        <div class="col-md-4"><label class="form-label">Full Name <span class="text-danger-asterisk">*</span></label><input type="text" class="form-control" name="full_name" value="<?= esc(old('full_name')) ?>" required></div>
+                        <div class="col-md-4"><label class="form-label">Mobile Number <span class="text-danger-asterisk">*</span></label><input type="tel" class="form-control" name="mobile_number" value="<?= esc(old('mobile_number')) ?>" required pattern="\d+" oninput="this.value=this.value.replace(/[^0-9]/g,'');"></div>
+                        <div class="col-md-4"><label class="form-label">Email ID</label><input type="email" class="form-control" name="email_id" value="<?= esc(old('email_id')) ?>"></div>
                         <div class="col-md-3"><label class="form-label">Date of Birth</label><input type="date" class="form-control" name="date_of_birth" value="<?= esc(old('date_of_birth')) ?>"></div>
                         <div class="col-md-6"><label class="form-label">Full Address</label><input type="text" class="form-control" name="full_address" value="<?= esc(old('full_address')) ?>"></div>
                         <div class="col-md-3"><label class="form-label">Nearby Famous Landmark</label><input type="text" class="form-control" name="nearby_landmark" value="<?= esc(old('nearby_landmark')) ?>"></div>
@@ -269,26 +328,26 @@ require BASE_PATH . '/app/views/partials/app_layout_start.php';
 
                     <h6 class="section-title">Work Experience</h6>
                     <div class="row g-3 mb-3">
-                        <div class="col-md-4"><label class="form-label">Experience Type</label>
-                            <select class="form-select" name="experience_type">
+                        <div class="col-md-12"><label class="form-label">Experience Type</label>
+                            <select class="form-select" name="experience_type" id="experienceTypeSelect">
                                 <?php foreach (experience_type_options() as $item): ?>
                                     <option value="<?= esc($item) ?>" <?= old('experience_type', 'Fresher') === $item ? 'selected' : '' ?>><?= esc($item) ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="col-md-4"><label class="form-label">Company Name & City</label><input type="text" class="form-control" name="previous_company_city" value="<?= esc(old('previous_company_city')) ?>"></div>
-                        <div class="col-md-4"><label class="form-label">Designation</label><input type="text" class="form-control" name="previous_designation" value="<?= esc(old('previous_designation')) ?>"></div>
-                        <div class="col-md-12"><label class="form-label">Roles & Responsibilities</label><textarea class="form-control" name="previous_roles" rows="2"><?= esc(old('previous_roles')) ?></textarea></div>
-                        <div class="col-md-4"><label class="form-label">Starting Date</label><input type="date" class="form-control" name="previous_start_date" value="<?= esc(old('previous_start_date')) ?>"></div>
-                        <div class="col-md-4"><label class="form-label">End Date</label><input type="date" class="form-control" name="previous_end_date" value="<?= esc(old('previous_end_date')) ?>"></div>
-                        <div class="col-md-4"><label class="form-label">Salary Per Month</label><input type="text" class="form-control" name="previous_salary_month" value="<?= esc(old('previous_salary_month')) ?>"></div>
+                        <div class="col-md-4 experienced-only"><label class="form-label">Company Name & City</label><input type="text" class="form-control" name="previous_company_city" value="<?= esc(old('previous_company_city')) ?>"></div>
+                        <div class="col-md-4 experienced-only"><label class="form-label">Designation</label><input type="text" class="form-control" name="previous_designation" value="<?= esc(old('previous_designation')) ?>"></div>
+                        <div class="col-md-12 experienced-only"><label class="form-label">Roles & Responsibilities</label><textarea class="form-control" name="previous_roles" rows="2"><?= esc(old('previous_roles')) ?></textarea></div>
+                        <div class="col-md-4 experienced-only"><label class="form-label">Starting Date</label><input type="date" class="form-control" name="previous_start_date" value="<?= esc(old('previous_start_date')) ?>"></div>
+                        <div class="col-md-4 experienced-only"><label class="form-label">End Date</label><input type="date" class="form-control" name="previous_end_date" value="<?= esc(old('previous_end_date')) ?>"></div>
+                        <div class="col-md-4 experienced-only"><label class="form-label">Salary Per Month</label><input type="number" min="0" class="form-control" name="previous_salary_month" value="<?= esc(old('previous_salary_month')) ?>"></div>
                     </div>
 
-                    <h6 class="section-title">Current Job Details</h6>
-                    <div class="row g-3 mb-3">
+                    <h6 class="section-title experienced-only">Current Job Details</h6>
+                    <div class="row g-3 mb-3 experienced-only">
                         <div class="col-md-4"><label class="form-label">Current Company Name & City</label><input type="text" class="form-control" name="current_company_city" value="<?= esc(old('current_company_city')) ?>"></div>
                         <div class="col-md-4"><label class="form-label">Current Designation</label><input type="text" class="form-control" name="current_designation" value="<?= esc(old('current_designation')) ?>"></div>
-                        <div class="col-md-4"><label class="form-label">Current Salary (Per Month)</label><input type="text" class="form-control" name="current_salary_month" value="<?= esc(old('current_salary_month')) ?>"></div>
+                        <div class="col-md-4"><label class="form-label">Current Salary (Per Month)</label><input type="number" min="0" class="form-control" name="current_salary_month" value="<?= esc(old('current_salary_month')) ?>"></div>
                         <div class="col-md-12"><label class="form-label">Current Roles & Responsibilities</label><textarea class="form-control" name="current_roles" rows="2"><?= esc(old('current_roles')) ?></textarea></div>
                         <div class="col-md-4"><label class="form-label">Current Job Starting Date</label><input type="date" class="form-control" name="current_start_date" value="<?= esc(old('current_start_date')) ?>"></div>
                         <div class="col-md-8"><label class="form-label">Reason for Change</label><input type="text" class="form-control" name="reason_for_change" value="<?= esc(old('reason_for_change')) ?>"></div>
@@ -298,11 +357,11 @@ require BASE_PATH . '/app/views/partials/app_layout_start.php';
                     <div class="row g-3 mb-3">
                         <div class="col-md-6"><label class="form-label">Set of Skills</label><textarea class="form-control" name="skills_set" rows="2"><?= esc(old('skills_set')) ?></textarea></div>
                         <div class="col-md-6"><label class="form-label">Achievements</label><textarea class="form-control" name="achievements" rows="2"><?= esc(old('achievements')) ?></textarea></div>
-                        <div class="col-md-3"><label class="form-label">Expected Salary (Per Month)</label><input type="text" class="form-control" name="expected_salary_month" value="<?= esc(old('expected_salary_month')) ?>"></div>
+                        <div class="col-md-3"><label class="form-label">Expected Salary (Per Month)</label><input type="number" min="0" class="form-control" name="expected_salary_month" value="<?= esc(old('expected_salary_month')) ?>"></div>
                         <div class="col-md-3"><label class="form-label">Preferred Location</label><input type="text" class="form-control" name="preferred_location" value="<?= esc(old('preferred_location')) ?>"></div>
                         <div class="col-md-3"><label class="form-label">Preferred Working Time</label>
                             <select class="form-select" name="preferred_working_time">
-                                <?php foreach (['', 'Full Time', 'Part Time', 'Day Shift', 'Night Shift', 'Flexible'] as $item): ?>
+                                <?php foreach ($timingOptions as $item): ?>
                                     <option value="<?= esc($item) ?>" <?= old('preferred_working_time') === $item ? 'selected' : '' ?>><?= esc($item !== '' ? $item : 'Select') ?></option>
                                 <?php endforeach; ?>
                             </select>
@@ -317,7 +376,11 @@ require BASE_PATH . '/app/views/partials/app_layout_start.php';
                             </div>
                         </div>
                         <div class="col-md-6"><label class="form-label">Additional Notes</label><textarea class="form-control" name="additional_notes" rows="3"><?= esc(old('additional_notes')) ?></textarea></div>
-                        <div class="col-md-4"><label class="form-label">Resume Upload (PDF/DOC/DOCX)</label><input type="file" class="form-control" name="resume_file" accept=".pdf,.doc,.docx"></div>
+                        <div class="col-md-4">
+                            <label class="form-label">Resume Upload (PDF/DOC/DOCX)</label>
+                            <input type="file" class="form-control" name="resume_file" accept=".pdf,.doc,.docx">
+                            <div id="currentResumeDisplay" class="mt-1 small"></div>
+                        </div>
                         <div class="col-md-2"><label class="form-label">Status</label>
                             <select class="form-select" name="status">
                                 <?php foreach ($statusOptions as $item): ?>
@@ -334,10 +397,56 @@ require BASE_PATH . '/app/views/partials/app_layout_start.php';
                         </div>
                         <div class="col-md-2"><label class="form-label">Added On</label><input type="date" class="form-control" name="added_on" value="<?= esc(old('added_on', date('Y-m-d'))) ?>"></div>
                     </div>
+
+                    <div id="timelineSection" style="display: none;">
+                        <hr class="my-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="section-title mb-0"><i class="bi bi-clock-history"></i> Activity Timeline</h6>
+                            <span class="badge bg-info-subtle text-info border border-info-subtle">History</span>
+                        </div>
+                        <div id="candidateTimeline" class="timeline-compact p-2 rounded" style="max-height: 250px; overflow-y: auto;">
+                            <p class="text-secondary small mb-0 text-center py-3">Loading history...</p>
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer modal-footer-sticky">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-success" id="candidateSubmitBtn">Save Candidate</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="candidateReminderModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+            <form method="post" action="index.php?action=add_candidate_reminder&<?= $filterQuery ?>">
+                <?= csrf_field() ?>
+                <div class="modal-header modal-header-sticky">
+                    <h5 class="modal-title">Set Reminder</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body pt-2">
+                    <input type="hidden" name="candidate_id" id="reminderCandidateId">
+                    <div class="row g-3">
+                        <div class="col-md-6"><label class="form-label">Title</label><input type="text" class="form-control" name="title" id="reminderCandidateTitle" value="Candidate Follow-up Reminder"></div>
+                        <div class="col-md-6"><label class="form-label">Reminder Date & Time *</label><input type="datetime-local" class="form-control" name="remind_at" required></div>
+                        <div class="col-md-6"><label class="form-label">Email To</label><input type="email" class="form-control" name="email_to" id="reminderCandidateEmail"></div>
+                        <div class="col-md-6"><label class="form-label">Phone To</label><input type="text" class="form-control" name="phone_to" id="reminderCandidatePhone"></div>
+                        <div class="col-12"><label class="form-label">Reminder Message</label><textarea class="form-control" name="reminder_message" rows="3"></textarea></div>
+                        <div class="col-12">
+                            <div class="d-flex gap-3 flex-wrap">
+                                <label class="doc-check"><input type="checkbox" name="notify_email" value="1" checked> <span>Email</span></label>
+                                <label class="doc-check"><input type="checkbox" name="notify_sms" value="1" checked> <span>SMS/Number</span></label>
+                                <label class="doc-check"><input type="checkbox" name="notify_web" value="1" checked> <span>Website Notification</span></label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer modal-footer-sticky">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">Save Reminder</button>
                 </div>
             </form>
         </div>

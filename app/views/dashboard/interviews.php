@@ -14,6 +14,7 @@ $date = trim((string) ($_GET['date'] ?? ''));
 $pageTitle = 'Employa HR - Interviews';
 $headerTitle = 'Interview';
 $currentModule = 'interviews';
+$filterQuery = http_build_query(['stage' => $stage, 'date' => $date]);
 $headerActions = '<button class="btn btn-success fw-semibold" data-bs-toggle="modal" data-bs-target="#addInterviewModal"><i class="bi bi-calendar-plus"></i> Add Interview</button>';
 
 require BASE_PATH . '/app/views/partials/app_layout_start.php';
@@ -35,7 +36,7 @@ require BASE_PATH . '/app/views/partials/app_layout_start.php';
     <input type="hidden" name="action" value="interviews">
     <div class="row g-2">
         <div class="col-lg-5 col-sm-6">
-            <select class="form-select" name="stage">
+            <select class="form-select" name="stage" onchange="this.form.submit()">
                 <option value="">All Stages</option>
                 <?php foreach ($stageOptions as $option): ?>
                     <option value="<?= esc($option) ?>" <?= $stage === $option ? 'selected' : '' ?>><?= esc($option) ?></option>
@@ -43,19 +44,35 @@ require BASE_PATH . '/app/views/partials/app_layout_start.php';
             </select>
         </div>
         <div class="col-lg-5 col-sm-6">
-            <input class="form-control" type="date" name="date" value="<?= esc($date) ?>">
+            <input class="form-control" type="date" name="date" value="<?= esc($date) ?>" onchange="this.form.submit()">
         </div>
-        <div class="col-lg-2 d-grid">
-            <button class="btn btn-outline-secondary" type="submit">Filter</button>
-        </div>
+    </div>
+    <div class="d-flex flex-wrap gap-2 mt-3">
+        <a class="btn btn-outline-secondary" href="index.php?<?= http_build_query(['action' => 'export_interview_filtered', 'stage' => $stage, 'date' => $date]) ?>">Export Filtered</a>
+        <a class="btn btn-outline-secondary disabled" href="#" id="exportInterviewSelectedBtn" data-base-url="index.php?action=export_interview_selected">Export Selected</a>
     </div>
 </form>
 
 <div class="card card-soft p-3">
+    <div class="d-flex flex-wrap gap-3 align-items-center mb-3">
+        <label class="d-flex align-items-center gap-2 mb-0">
+            <input type="checkbox" class="form-check-input" id="selectVisibleCheckbox">
+            <span>Select visible</span>
+        </label>
+        <strong class="text-secondary"><span id="selectedCount">0</span> selected</strong>
+
+        <form id="deleteSelectedForm" method="post" action="index.php?action=delete_interview&<?= $filterQuery ?>" class="ms-auto">
+            <?= csrf_field() ?>
+            <input type="hidden" name="selected_ids" id="deleteSelectedIds">
+            <button type="submit" class="btn btn-outline-danger" id="deleteSelectedBtn">Delete Selected</button>
+        </form>
+    </div>
+
     <div class="table-responsive data-table-wrap">
         <table class="table table-candidates align-middle mb-0">
             <thead>
                 <tr>
+                    <th style="width:44px;"></th>
                     <th>Candidate</th>
                     <th>Client</th>
                     <th>Round</th>
@@ -68,31 +85,43 @@ require BASE_PATH . '/app/views/partials/app_layout_start.php';
             </thead>
             <tbody>
                 <?php if (empty($interviews)): ?>
-                    <tr><td colspan="8" class="text-center py-5 text-secondary">No interview data found.</td></tr>
+                    <tr><td colspan="9" class="text-center py-5 text-secondary">No interview data found.</td></tr>
                 <?php else: ?>
                     <?php foreach ($interviews as $item): ?>
                         <tr>
+                            <td><input type="checkbox" class="form-check-input row-checkbox" value="<?= (int) $item['id'] ?>"></td>
                             <td>
                                 <p class="candidate-name mb-0"><?= esc((string) ($item['candidate_name'] ?: 'N/A')) ?></p>
                                 <small class="text-secondary">ID #<?= (int) $item['candidate_id'] ?></small>
                             </td>
                             <td><?= esc((string) ($item['client_name'] ?: '-')) ?></td>
-                            <td><?= esc((string) $item['round_name']) ?></td>
-                            <td><?= esc((string) $item['interview_date']) ?></td>
-                            <td><?= esc((string) $item['mode']) ?></td>
+                            <td><?= esc((string) ($item['round_name'])) ?></td>
+                            <td><?= esc((string) ($item['interview_date'])) ?></td>
+                            <td><?= esc((string) ($item['mode'])) ?></td>
                             <td><?= esc((string) ($item['interviewer'] ?: '-')) ?></td>
                             <td><span class="badge stage-pill"><?= esc((string) $item['stage']) ?></span></td>
+                            <?php
+                            $interviewFormFields = [
+                                'candidate_id', 'client_id', 'round_name', 'interview_date', 'interviewer', 'mode', 'stage', 'feedback'
+                            ];
+                            $interviewDataAttrs = 'data-interview-id="' . (int) $item['id'] . '"';
+                            foreach ($interviewFormFields as $field) {
+                                $interviewDataAttrs .= ' data-interview-' . str_replace('_', '-', $field) . '="' . esc((string) ($item[$field] ?? '')) . '"';
+                            }
+                            ?>
                             <td class="sticky-action action-cell">
-                                <form method="post" action="index.php?action=update_interview_stage" class="d-flex gap-1 align-items-center">
-                                    <?= csrf_field() ?>
-                                    <input type="hidden" name="interview_id" value="<?= (int) $item['id'] ?>">
-                                    <select name="stage" class="form-select form-select-sm">
-                                        <?php foreach ($stageOptions as $option): ?>
-                                            <option value="<?= esc($option) ?>" <?= $item['stage'] === $option ? 'selected' : '' ?>><?= esc($option) ?></option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                    <button class="btn btn-outline-secondary btn-sm" type="submit">Save</button>
-                                </form>
+                                <div class="d-flex flex-nowrap align-items-center gap-1">
+                                    <button
+                                        class="btn btn-sm btn-outline-primary interview-edit-btn"
+                                        type="button"
+                                        title="Edit"
+                                        data-interview-mode="edit"
+                                        <?= $interviewDataAttrs ?>
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#addInterviewModal">
+                                        <i class="bi bi-pencil-square"></i>
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -102,19 +131,22 @@ require BASE_PATH . '/app/views/partials/app_layout_start.php';
     </div>
 </div>
 
+?>
+
 <div class="modal fade" id="addInterviewModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content border-0 shadow-lg">
-            <form method="post" action="index.php?action=add_interview">
+            <form method="post" action="index.php?action=add_interview&<?= $filterQuery ?>">
                 <?= csrf_field() ?>
                 <div class="modal-header modal-header-sticky">
                     <h5 class="modal-title">Add Interview</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
+                <input type="hidden" name="interview_id" id="interviewIdInput">
                 <div class="modal-body pt-2">
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <label class="form-label">Candidate *</label>
+                            <label class="form-label">Candidate <span class="text-danger-asterisk">*</span></label>
                             <select name="candidate_id" class="form-select" required>
                                 <option value="">Select Candidate</option>
                                 <?php foreach ($candidates as $candidate): ?>
@@ -132,11 +164,11 @@ require BASE_PATH . '/app/views/partials/app_layout_start.php';
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Round Name *</label>
+                            <label class="form-label">Round Name <span class="text-danger-asterisk">*</span></label>
                             <input type="text" class="form-control" name="round_name" value="<?= esc(old('round_name')) ?>" placeholder="Technical Round 1" required>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Interview Date *</label>
+                            <label class="form-label">Interview Date <span class="text-danger-asterisk">*</span></label>
                             <input type="date" class="form-control" name="interview_date" value="<?= esc(old('interview_date', date('Y-m-d'))) ?>" required>
                         </div>
                         <div class="col-md-6">

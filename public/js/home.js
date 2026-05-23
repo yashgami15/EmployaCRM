@@ -61,14 +61,16 @@
             return;
         }
 
+        const hasData = dataset.values.some(v => v > 0);
+
         new Chart(element.getContext('2d'), {
             type: 'doughnut',
             data: {
-                labels: dataset.labels,
+                labels: hasData ? dataset.labels : ['No Data Yet'],
                 datasets: [
                     {
-                        data: dataset.values,
-                        backgroundColor: chartColors,
+                        data: hasData ? dataset.values : [1],
+                        backgroundColor: hasData ? chartColors : ['#e9ecef'],
                         borderColor: '#ffffff',
                         borderWidth: 3,
                     },
