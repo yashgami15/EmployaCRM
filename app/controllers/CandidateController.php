@@ -896,6 +896,10 @@ class CandidateController
 
     public static function parseResumeAjax(): void
     {
+        // Suppress warnings/notices so they don't break the JSON output
+        error_reporting(0);
+        ini_set('display_errors', '0');
+
         require_auth();
         header('Content-Type: application/json');
 
@@ -965,7 +969,7 @@ class CandidateController
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlError = curl_error($ch);
-        curl_close($ch);
+        // Removed curl_close($ch) because it is deprecated in PHP 8.4+ and causes a warning
 
         if ($response === false) {
             echo json_encode(['status' => 'error', 'message' => 'Failed to connect to Google API: ' . $curlError]);
