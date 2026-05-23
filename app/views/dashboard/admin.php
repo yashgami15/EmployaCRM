@@ -144,7 +144,6 @@ require BASE_PATH . '/app/views/partials/app_layout_start.php';
                         </div>
                         <div class="form-text text-muted small mt-2">Select which modules this user can access. Admin role ignores these and gets full access.</div>
                     </div>
-                    </div>
                 </div>
                 <div class="modal-footer bg-light border-top-0 d-flex justify-content-between">
                     <button type="button" class="btn btn-outline-danger" onclick="confirmDelete()">Delete User</button>
