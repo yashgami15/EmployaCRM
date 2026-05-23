@@ -460,12 +460,14 @@ function match_score_detailed(array $candidate, array $client): array
         
         if ($candCoords && $clientCoords) {
             $distanceKm = calculate_distance($candCoords['lat'], $candCoords['lng'], $clientCoords['lat'], $clientCoords['lng']);
-            if ($distanceKm <= 10) {
+            if ($distanceKm > 100) {
+                return ['score' => 0, 'distance_km' => $distanceKm]; // Reject if too far (> 100km)
+            } elseif ($distanceKm <= 10) {
                 $totalScore += $locationWeight; // Within 10km
             } elseif ($distanceKm <= 50) {
                 $totalScore += $locationWeight * 0.7; // Within 50km
             } else {
-                $totalScore += $locationWeight * 0.3; // Far
+                $totalScore += $locationWeight * 0.3; // Within 100km but far
             }
         } else {
             // Fallback to text matching
