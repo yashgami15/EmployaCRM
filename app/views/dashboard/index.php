@@ -474,30 +474,48 @@ $oldDocuments = old_array('documents_have');
     </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Configure PDF.js worker
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
     const aiResumeUpload = document.getElementById('aiResumeUpload');
     if (aiResumeUpload) {
-        aiResumeUpload.addEventListener('change', function() {
+        aiResumeUpload.addEventListener('change', async function() {
             if (this.files.length === 0) return;
             const file = this.files[0];
             
             if (file.type !== 'application/pdf') {
-                alert('Please upload a PDF file for AI parsing.');
+                alert('Please upload a PDF file for parsing.');
                 this.value = '';
                 return;
             }
             
-            const formData = new FormData();
-            formData.append('resume', file);
-            
             const loadingIndicator = document.getElementById('aiLoadingIndicator');
             loadingIndicator.classList.remove('d-none');
             
-            fetch('index.php?action=parse_resume_ajax', {
-                method: 'POST',
-                body: formData
-            })
+            try {
+                // Extract text from PDF in the browser
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+                let extractedText = '';
+                
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    const pageText = textContent.items.map(item => item.str).join(' ');
+                    extractedText += pageText + ' \n';
+                }
+                
+                const formData = new FormData();
+                formData.append('extracted_text', extractedText);
+                formData.append('mime_type', file.type);
+                
+                fetch('index.php?action=parse_resume_ajax', {
+                    method: 'POST',
+                    body: formData
+                })
             .then(async res => {
                 const text = await res.text();
                 try {
@@ -547,6 +565,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 this.value = '';
                 alert('Connection/Server Error: ' + err.message);
             });
+            } catch (error) {
+                loadingIndicator.classList.add('d-none');
+                this.value = '';
+                alert('Error parsing PDF: ' + error.message);
+            }
         });
     }
 });

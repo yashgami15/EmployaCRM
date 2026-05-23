@@ -59,7 +59,11 @@ class ResumeParser
     public static function parseLocally(string $filePath, string $mimeType): array
     {
         $text = self::extractTextFallback($filePath, $mimeType);
-        
+        return self::parseTextLocally($text);
+    }
+
+    public static function parseTextLocally(string $text): array
+    {
         // Remove bad UTF-8 which causes JSON encoding to fail
         $text = mb_convert_encoding($text, 'UTF-8', 'UTF-8');
         

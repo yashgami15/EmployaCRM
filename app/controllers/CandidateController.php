@@ -903,20 +903,26 @@ class CandidateController
         require_auth();
         header('Content-Type: application/json');
 
-        if (!isset($_FILES['resume']) || $_FILES['resume']['error'] !== UPLOAD_ERR_OK) {
-            echo json_encode(['status' => 'error', 'message' => 'No file uploaded or upload error.']);
+        if (!isset($_FILES['resume']) && !isset($_POST['extracted_text'])) {
+            echo json_encode(['status' => 'error', 'message' => 'No resume data received.']);
             exit;
         }
 
-        $tmpFile = $_FILES['resume']['tmp_name'];
-        $mimeType = function_exists('mime_content_type') ? mime_content_type($tmpFile) : $_FILES['resume']['type'];
-
-        // --- LOCAL NATIVE PHP PARSER (No AI API) ---
         require_once BASE_PATH . '/app/helpers/ResumeParser.php';
-        $localData = ResumeParser::parseLocally($tmpFile, $mimeType);
+
+        $localData = [];
+        if (!empty($_POST['extracted_text'])) {
+            // Text was flawlessly extracted in the browser using PDF.js!
+            $localData = ResumeParser::parseTextLocally($_POST['extracted_text']);
+        } else {
+            // Fallback if browser extraction failed
+            $tmpFile = $_FILES['resume']['tmp_name'];
+            $mimeType = function_exists('mime_content_type') ? mime_content_type($tmpFile) : $_FILES['resume']['type'];
+            $localData = ResumeParser::parseLocally($tmpFile, $mimeType);
+        }
 
         if (!empty($localData['email_address']) || !empty($localData['mobile_number'])) {
-            echo json_encode(['status' => 'success', 'data' => $localData, 'message' => "Resume parsed locally (No AI API used). Please verify the details!"]);
+            echo json_encode(['status' => 'success', 'data' => $localData]);
             exit;
         }
 
