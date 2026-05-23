@@ -297,8 +297,8 @@ $oldDocuments = old_array('documents_have');
                 <div class="modal-body pt-2">
                     <div class="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom bg-light p-3 rounded">
                         <div>
-                            <h6 class="mb-1 text-primary"><i class="bi bi-magic me-1"></i> Autofill with AI (Resume Parser)</h6>
-                            <p class="mb-0 small text-muted">Upload a Candidate's Resume (PDF) and our AI will automatically read it and fill out this form for you to review.</p>
+                            <h6 class="mb-1 text-primary"><i class="bi bi-magic me-1"></i> Auto-Extract Resume Details</h6>
+                            <p class="mb-0 small text-muted">Upload a Candidate's Resume (PDF) and our local parser will automatically read it and fill out this form for you to review.</p>
                         </div>
                         <div>
                             <input type="file" id="aiResumeUpload" class="d-none" accept="application/pdf">
@@ -312,7 +312,7 @@ $oldDocuments = old_array('documents_have');
                         <div class="spinner-border text-primary mb-2" role="status">
                             <span class="visually-hidden">Loading...</span>
                         </div>
-                        <h6 class="text-primary mb-0">AI is analyzing the resume...</h6>
+                        <h6 class="text-primary mb-0">Analyzing the resume...</h6>
                         <p class="small text-muted mb-0 mt-1">This takes about 5 to 10 seconds. Please wait.</p>
                     </div>
                     
