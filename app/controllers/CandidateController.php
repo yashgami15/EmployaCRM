@@ -911,81 +911,16 @@ class CandidateController
         $tmpFile = $_FILES['resume']['tmp_name'];
         $mimeType = function_exists('mime_content_type') ? mime_content_type($tmpFile) : $_FILES['resume']['type'];
 
-        // Try AI Parsing First
-        $parsedJson = null;
-        $aiError = '';
-
-        if ($mimeType === 'application/pdf' && function_exists('curl_init')) {
-            $tenantName = $_SESSION['tenant_name'] ?? '';
-            $stmt = db()->prepare('SELECT gemini_api_key FROM users WHERE tenant_name = :tenant AND gemini_api_key IS NOT NULL AND gemini_api_key != "" LIMIT 1');
-            $stmt->execute(['tenant' => $tenantName]);
-            $apiKeyRow = $stmt->fetch();
-
-            if ($apiKeyRow && !empty($apiKeyRow['gemini_api_key'])) {
-                $apiKey = trim($apiKeyRow['gemini_api_key']);
-                require_once BASE_PATH . '/app/helpers/ResumeParser.php';
-                $extractedRawText = ResumeParser::extractTextFallback($tmpFile, $mimeType);
-                
-                $payload = [
-                    "contents" => [
-                        [
-                            "parts" => [
-                                [
-                                    "text" => "Extract candidate details from the following resume text into JSON. Format the output as a valid JSON object ONLY. Keys must be exactly: full_name, email_address, mobile_number, preferred_work_role_field (string, guessed job role), skills_set (comma separated string), current_company_city (string), current_designation (string), expected_salary_month (numeric string), experience_type (choose 'Fresher' or 'Experienced'). Return ONLY the JSON object, no markdown, no backticks. \n\nRESUME TEXT:\n" . substr($extractedRawText, 0, 15000)
-                                ]
-                            ]
-                        ]
-                    ],
-                    "generationConfig" => [
-                        "temperature" => 0.2
-                    ]
-                ];
-
-                $ch = curl_init("https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" . $apiKey);
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_POST, true);
-                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-
-                $response = curl_exec($ch);
-                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                // curl_close removed for PHP 8.4 compatibility
-
-                if ($response !== false && $httpCode === 200) {
-                    $data = json_decode($response, true);
-                    $extractedText = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
-                    if (!empty($extractedText)) {
-                        $extractedText = preg_replace('/```json/i', '', $extractedText);
-                        $extractedText = preg_replace('/```/i', '', $extractedText);
-                        $parsedJson = json_decode(trim($extractedText, " \t\n\r\0\x0B`"), true);
-                    }
-                } else {
-                    $aiError = "Google AI Error HTTP $httpCode.";
-                }
-            } else {
-                $aiError = "No API Key configured.";
-            }
-        } else {
-            $aiError = "cURL missing or not a PDF.";
-        }
-
-        // If AI parsing succeeded, return it!
-        if ($parsedJson && isset($parsedJson['email_address'])) {
-            echo json_encode(['status' => 'success', 'data' => $parsedJson]);
-            exit;
-        }
-
-        // --- LOCAL FALLBACK PARSING ---
+        // --- LOCAL NATIVE PHP PARSER (No AI API) ---
         require_once BASE_PATH . '/app/helpers/ResumeParser.php';
         $localData = ResumeParser::parseLocally($tmpFile, $mimeType);
 
         if (!empty($localData['email_address']) || !empty($localData['mobile_number'])) {
-            echo json_encode(['status' => 'success', 'data' => $localData, 'message' => "AI Parser failed ($aiError). Used Local Fallback Parser instead."]);
+            echo json_encode(['status' => 'success', 'data' => $localData, 'message' => "Resume parsed locally (No AI API used). Please verify the details!"]);
             exit;
         }
 
-        echo json_encode(['status' => 'error', 'message' => "AI Parsing failed ($aiError) and Local Fallback could not extract data from this file format."]);
+        echo json_encode(['status' => 'error', 'message' => "Failed to extract text from this document format."]);
         exit;
     }
 }
