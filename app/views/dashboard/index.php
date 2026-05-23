@@ -518,7 +518,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (candidateData.email_address) document.querySelector('[name="email_id"]').value = candidateData.email_address;
                     if (candidateData.mobile_number) document.querySelector('[name="mobile_number"]').value = candidateData.mobile_number.replace(/[^0-9]/g, '');
                     if (candidateData.preferred_work_role_field) document.querySelector('[name="preferred_work_role_field"]').value = candidateData.preferred_work_role_field;
-                    if (candidateData.skills_set) document.querySelector('[name="skills"]').value = candidateData.skills_set;
+                    if (candidateData.skills_set) document.querySelector('[name="skills_set"]').value = candidateData.skills_set;
                     if (candidateData.current_company_city) document.querySelector('[name="current_company_city"]').value = candidateData.current_company_city;
                     if (candidateData.current_designation) document.querySelector('[name="current_designation"]').value = candidateData.current_designation;
                     if (candidateData.expected_salary_month) document.querySelector('[name="expected_salary_month"]').value = candidateData.expected_salary_month.replace(/[^0-9]/g, '');
